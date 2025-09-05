@@ -1,103 +1,177 @@
-import Image from "next/image";
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+import Chart from "chart.js/auto";
 
 export default function Home() {
-  return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              app/page.js
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+  const [jessica, setJessica] = useState(null);
+  const [err, setErr] = useState("");
+  const chartInstance = useRef(null);
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+  // Fetch Jessica via API route
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch("/api/patients", { cache: "no-store" });
+        const j = await res.json(); // API returns Jessica 
+
+        if (!j || !j.name) throw new Error("Jessica Taylor not found");
+        setJessica(j);
+      } catch (e) {
+        setErr(e.message);
+      }
+    })();
+  }, []);
+
+  // Update chart when Jessica is loaded
+  useEffect(() => {
+    if (!jessica) return;
+
+    const hist = jessica.diagnosis_history || [];
+    const labels = hist.map((h) => h.month);
+    const systolic = hist.map((h) => h.systolic);
+    const diastolic = hist.map((h) => h.diastolic);
+
+    const canvas = document.getElementById("bloodPressureChart");
+    if (!canvas) return;
+
+    if (chartInstance.current) {
+      chartInstance.current.destroy();
+    }
+
+    chartInstance.current = new Chart(canvas.getContext("2d"), {
+      type: "line",
+      data: {
+        labels,
+        datasets: [
+          {
+            label: "Systolic",
+            data: systolic,
+            borderColor: "#ef4444",
+            borderWidth: 2,
+            tension: 0.3
+          },
+          {
+            label: "Diastolic",
+            data: diastolic,
+            borderColor: "#3b82f6",
+            borderWidth: 2,
+            tension: 0.3
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        plugins: { legend: { position: "top" } },
+        scales: { y: { beginAtZero: false } }
+      }
+    });
+  }, [jessica]);
+
+  if (err) {
+    return (
+      <div className="center">
+        <h2> Error</h2>
+        <p>{err}</p>
+      </div>
+    );
+  }
+
+  if (!jessica) return <p className="loading">Loading Jessica Taylor’s data…</p>;
+
+  return (
+    <div className="dashboard">
+      {/* Sidebar */}
+      <aside className="sidebar">
+        <h2 className="sidebar-title">Patients</h2>
+        <div className="patient-card active">
+          <img src={jessica.profile_picture} alt={jessica.name} />
+          <div>
+            <h3>{jessica.name}</h3>
+            <p>
+              {jessica.gender}
+              {jessica.age ? `, ${jessica.age}` : ""}
+            </p>
+          </div>
         </div>
+      </aside>
+
+      {/* Main */}
+      <main className="content">
+        <header className="topnav">
+          <nav>
+            <a className="active">Overview</a>
+            <a>Patients</a>
+            <a>Schedule</a>
+            <a>Messages</a>
+            <a>Transactions</a>
+          </nav>
+          <div className="doc">
+            <span>Dr. Taylor Simmons</span>
+          </div>
+        </header>
+
+        <section className="grid">
+          {/* Diagnose (chart) */}
+          <div className="card col-span-2">
+            <h2>Diagnosis History</h2>
+            <canvas id="bloodPressureChart" height="220"></canvas>
+          </div>
+
+          {/* Diagnos cards */}
+          <div className="card">
+            <h2>Diagnostic List</h2>
+            <div className="diagnostic-list">
+              {(jessica.diagnostic_list || []).map((item, idx) => (
+                <div key={idx} className="diagnostic-card">
+                  <h3>{item.name}</h3>
+                  <p className="value">{item.value}</p>
+                  <span
+                    className={`level ${String(item.level || "")
+                      .toLowerCase()
+                      .replace(/ /g, "-")}`}
+                  >
+                    {item.level}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Patient information */}
+          <div className="card col-span-2">
+            <h2>Patient Profile</h2>
+            <div className="profile-info">
+              <img
+                src={jessica.profile_picture}
+                alt={jessica.name}
+                className="profile-pic"
+              />
+              <div className="profile-grid">
+                <p>
+                  <strong>Name:</strong> {jessica.name}
+                </p>
+                <p>
+                  <strong>Date of Birth:</strong> {jessica.date_of_birth}
+                </p>
+                <p>
+                  <strong>Gender:</strong> {jessica.gender}
+                </p>
+                <p>
+                  <strong>Phone:</strong> {jessica?.contact_info?.phone || "—"}
+                </p>
+                <p>
+                  <strong>Emergency:</strong>{" "}
+                  {jessica?.contact_info?.emergency_contact || "—"}
+                </p>
+                <p>
+                  <strong>Insurance:</strong> {jessica.insurance_type || "—"}
+                </p>
+              </div>
+            </div>
+          </div>
+        </section>
       </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
     </div>
   );
 }
