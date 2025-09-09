@@ -1,4 +1,4 @@
-echo '[build]
+[build]
 command = "npm run build"
 publish = ".next"
 
@@ -6,4 +6,4 @@ publish = ".next"
   package = "@netlify/plugin-nextjs"
 
 [build.environment]
-  NODE_VERSION = "18"' > netlify.toml
+  NODE_VERSION = "18"
